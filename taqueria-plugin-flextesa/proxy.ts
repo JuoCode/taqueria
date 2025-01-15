@@ -32,7 +32,7 @@ import type { FlextesaAnnotations, Opts, ValidLoadedConfig, ValidOpts } from './
 // ATTENTION: There is a duplicate of this function in taqueria-vscode-extension/src/lib/gui/SandboxesDataProvider.ts
 // Please make sure the two are kept in-sync
 export const getUniqueSandboxName = async (sandboxName: string, projectDir: string) => {
-	const hash = await stringToSHA256(sandboxName + projectDir);
+	const hash = String(await stringToSHA256(sandboxName + projectDir));
 	return `${sandboxName.substring(0, 10)}-${hash.substring(0, 5)}`;
 };
 
@@ -159,17 +159,21 @@ const getSupportedProtocolKinds = (() => {
 
 const getProtocolKind = (sandbox: SandboxConfig.t, opts: ValidOpts) =>
 	getSupportedProtocolKinds(opts)
-		.then(protocols =>
-			protocols.reduce(
+		.then(protocols => {
+			const validProtocols = protocols.filter(p => p != 'Alpha' && p != 'Oxford'); // Oxford is filtered only because it's not supported in a image. Alpha is not a valid protocol as it doesn't work with the indexers
+			if (!sandbox.protocol || sandbox.protocol.includes('lpha')) {
+				return last(validProtocols);
+			}
+			return validProtocols.reduce(
 				(retval, protocolKind) => {
 					if (retval) return retval;
-					const givenProtocolHash = (sandbox.protocol ?? 'alpha').toLowerCase();
+					const givenProtocolHash = (sandbox.protocol!).toLowerCase();
 					const testProtocol = protocolKind.toLowerCase().slice(0, 4);
 					return givenProtocolHash.includes(testProtocol) ? protocolKind : undefined;
 				},
 				undefined as string | undefined,
-			) ?? last(protocols)
-		);
+			) ?? last(validProtocols);
+		});
 
 const getBootstrapBalance = (opts: ValidOpts) =>
 	Object.values(opts.config.accounts || {})
@@ -208,22 +212,57 @@ const getStartCommand = async (sandboxName: string, sandbox: SandboxConfig.t, op
 		);
 		await replaceRpcUrlInConfig(newPort, sandbox.rpcUrl.toString(), sandboxName, opts);
 	}
-	const ports = `-p ${newPort}:30000 --expose 30000`;
+	const ports = `-p ${newPort}:20000 --expose 20000`;
 
 	const containerName = await getContainerName(opts);
+	const mininetCmd = await getMininetCommand(sandboxName, sandbox, opts);
 	const arch = await getArch();
 	const image = getImage(opts);
 	const projectDir = process.env.PROJECT_DIR ?? opts.config.projectDir;
 	const proxyAbsPath = `${__dirname}/proxy.py`;
 
-	return `docker run -i --network sandbox_${sandboxName}_net --name ${containerName} --rm --detach --platform ${arch} ${ports} -v ${projectDir}:/project -v ${proxyAbsPath}:/opt/proxy.py ${image} /bin/sh -c "apk add py3-pip && python3 /opt/proxy.py"`;
+	return `docker run -i --network sandbox_${sandboxName}_net --name ${containerName} --rm --detach --platform ${arch} ${ports} -v ${projectDir}:/project ${image} /bin/sh -c "flextesa_node_cors_origin=* ${mininetCmd}"`;
 };
 
-const startMininet = async (sandboxName: string, sandbox: SandboxConfig.t, opts: ValidOpts) => {
-	const containerName = await getContainerName(opts);
-	const mininetCmd = await getMininetCommand(sandboxName, sandbox, opts);
-	const cmd = `docker exec -d ${containerName} sh -c "flextesa_node_cors_origin='*' ${mininetCmd}"`;
-	return execCmd(cmd);
+// const startMininet = async (sandboxName: string, sandbox: SandboxConfig.t, opts: ValidOpts) => {
+// 	const containerName = await getContainerName(opts);
+// 	const mininetCmd = await getMininetCommand(sandboxName, sandbox, opts);
+// 	const cmd = `docker exec -d ${containerName} sh -c "flextesa_node_cors_origin='*' ${mininetCmd}"`;
+// 	return execCmd(cmd);
+// };
+
+const startSandbox = (sandboxName: string, sandbox: SandboxConfig.t, opts: ValidOpts): Promise<void> => {
+	if (doesNotUseFlextesa(sandbox)) {
+		return sendAsyncErr(`Cannot start ${sandbox.label} as its configured to use the ${sandbox.plugin} plugin.`);
+	}
+
+	return Promise.resolve(opts)
+		.then(addSandboxAccounts)
+		.then(loadedConfig => {
+			console.log('Booting sandbox...');
+			return getStartCommand(sandboxName, sandbox, opts).then(execCmd)
+				.then(() => {
+					console.log('Importing accounts...');
+					return importSandboxAccounts(opts)(loadedConfig);
+				});
+		})
+		.then(() => importBaker(opts))
+		// .then(() => {
+		// 	console.log('Starting node...');
+		// 	return startMininet(sandboxName, sandbox, opts);
+		// })
+		.then(() => configureTezosClient(sandboxName, opts))
+		.then(() => {
+			console.log('Waiting for bootstrapping to complete...');
+			return waitForBootstrap(opts);
+		})
+		.then(() => {
+			console.log('Funding declared accounts (please wait)...');
+			return new Promise(resolve => setTimeout(resolve, 10000)).then(() => fundDeclaredAccounts(opts));
+		})
+		.then(() => {
+			console.log(`The sandbox "${sandboxName}" is ready.`);
+		});
 };
 
 const getConfigureCommand = async (opts: ValidOpts): Promise<string> => {
@@ -243,40 +282,6 @@ const waitForBootstrap = (parsedArgs: ValidOpts): unknown => {
 		.catch(({ stderr }) => {
 			if (stderr.includes('Failed to acquire the protocol version from the node')) return waitForBootstrap(parsedArgs);
 			throw stderr;
-		});
-};
-
-const startSandbox = (sandboxName: string, sandbox: SandboxConfig.t, opts: ValidOpts): Promise<void> => {
-	if (doesNotUseFlextesa(sandbox)) {
-		return sendAsyncErr(`Cannot start ${sandbox.label} as its configured to use the ${sandbox.plugin} plugin.`);
-	}
-
-	return Promise.resolve(opts)
-		.then(addSandboxAccounts)
-		.then(loadedConfig => {
-			console.log('Booting sandbox...');
-			return getStartCommand(sandboxName, sandbox, opts).then(execCmd)
-				.then(() => {
-					console.log('Importing accounts...');
-					return importSandboxAccounts(opts)(loadedConfig);
-				});
-		})
-		.then(() => importBaker(opts))
-		.then(() => {
-			console.log('Starting node...');
-			return startMininet(sandboxName, sandbox, opts);
-		})
-		.then(() => configureTezosClient(sandboxName, opts))
-		.then(() => {
-			console.log('Waiting for bootstrapping to complete...');
-			return waitForBootstrap(opts);
-		})
-		.then(() => {
-			console.log('Funding declared accounts (please wait)...');
-			return new Promise(resolve => setTimeout(resolve, 10000)).then(() => fundDeclaredAccounts(opts));
-		})
-		.then(() => {
-			console.log(`The sandbox "${sandboxName}" is ready.`);
 		});
 };
 
@@ -545,7 +550,10 @@ const bakeTask = (parsedArgs: ValidOpts) =>
 							`docker exec ${containerName} octez-client rpc get /chains/main/mempool/pending_operations`,
 						);
 						const ops = JSON.parse(stdout);
-						if (Array.isArray(ops.applied) && ops.applied.length > 0) break;
+						if (
+							(Array.isArray(ops.applied) && ops.applied.length > 0)
+							|| (Array.isArray(ops.validated) && ops.validated.length > 0)
+						) break;
 					}
 
 					await spawnCmd(`docker exec ${containerName} octez-client bake for baker0`);

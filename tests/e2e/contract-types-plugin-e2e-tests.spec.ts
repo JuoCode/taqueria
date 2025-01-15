@@ -79,6 +79,8 @@ describe('Contract Types Plugin E2E Testing for Taqueria CLI', () => {
 		await writeFile('./test-project/contracts/IncDec.jsligo', jsligo_file);
 
 		await execute('taq', 'compile IncDec.jsligo', './test-project');
+		const artifactsResult = await execute('ls', 'artifacts/', './test-project');
+		expect(artifactsResult.stdout).toContain('IncDec.tz');
 
 		const { stdout: stdout2 } = await execute('taq', 'generate types types', './test-project');
 		expect(stdout2).toContain(`generateTypes { typescriptDir: 'types' }`);
@@ -100,7 +102,7 @@ describe('Contract Types Plugin E2E Testing for Taqueria CLI', () => {
 	});
 
 	test('gentypes types can compile one contract and generate types', async () => {
-		const { execute, cleanup, spawn, writeFile, ls } = await prepareEnvironment();
+		const { execute, cleanup, spawn, writeFile, ls, path } = await prepareEnvironment();
 		const { waitForText } = await spawn('taq', 'init test-project');
 		await waitForText("Project taq'ified!");
 
@@ -113,8 +115,11 @@ describe('Contract Types Plugin E2E Testing for Taqueria CLI', () => {
 		await writeFile('./test-project/contracts/IncDec.jsligo', jsligo_file);
 
 		await execute('taq', 'compile IncDec.jsligo', './test-project');
+		const artifactsResult = await execute('ls', 'artifacts/', './test-project');
+		expect(artifactsResult.stdout).toContain('IncDec.tz');
 
-		const { stdout: stdout2 } = await execute('taq', 'gentypes types', './test-project');
+		const genResult = await execute('taq', 'gentypes types', './test-project');
+		const { stdout: stdout2 } = genResult;
 		expect(stdout2).toContain(`generateTypes { typescriptDir: 'types' }`);
 		expect(stdout2).toEqual(
 			expect.arrayContaining(['Generating Types: {{base}}/test-project/artifacts => {{base}}/test-project/types']),
@@ -302,7 +307,7 @@ describe('Contract Types Plugin E2E Testing for Taqueria CLI', () => {
 		await cleanup();
 	});
 
-	// See https://github.com/pinnacle-labs/taqueria/issues/1861
+	// See https://github.com/tezostaqueria/taqueria/issues/1861
 	test('Assure that entrypoints with optional parameters generate valid TypeScript', async () => {
 		const { execute, cleanup, spawn, writeFile, readFile } = await prepareEnvironment();
 		const { waitForText } = await spawn('taq', 'init test-project');
@@ -326,7 +331,7 @@ describe('Contract Types Plugin E2E Testing for Taqueria CLI', () => {
 		await cleanup();
 	});
 
-	// See https://github.com/pinnacle-labs/taqueria/issues/1895
+	// See https://github.com/tezostaqueria/taqueria/issues/1895
 	test('Assure that storages types with nested optional types generate valid TypeScript', async () => {
 		const { execute, cleanup, spawn, writeFile, readFile } = await prepareEnvironment();
 		const { waitForText } = await spawn('taq', 'init test-project');

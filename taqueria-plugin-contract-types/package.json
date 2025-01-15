@@ -1,6 +1,6 @@
 {
 	"name": "@taqueria/plugin-contract-types",
-	"version": "0.44.0",
+	"version": "0.68.0",
 	"main": "index.cjs",
 	"module": "index.js",
 	"source": "index.ts",
@@ -9,37 +9,37 @@
 	"scripts": {
 		"pluginInfo": "npx ts-node index.ts --taqRun pluginInfo --i18n {\"foo:\"\"bar\"}",
 		"build": "npx tsc -noEmit && npx tsup",
-		"build-ci": "npm run build",
+		"build-ci": "pnpm run build",
 		"debugPluginInfo": "node --inspect-brk index.js --taqRun pluginInfo --i18n {\"foo:\"\"bar\"}",
-		"examples": "npm run build && npm run example && npm run example-json && npm run example-simple && npm run example-file && npm run example-local",
+		"examples": "pnpm run build && pnpm run example && pnpm run example-json && pnpm run example-simple && pnpm run example-file && pnpm run example-local",
 		"example": "node run.js --g ./example/contracts ./example/types",
 		"example-json": "node run.js --json --g ./example/contracts ./example/types",
 		"example-simple": "node run.js --types simple --g ./example/contracts ./example/types-simple",
 		"example-file": "node run.js --types file --g ./example/contracts ./example/types-file",
 		"example-local": "node run.js --types local --g ./example/contracts ./example/types-local",
 		"example-jest-test-generation": "npx ts-node ./src/generator/testing-code-generator-jest-demo.ts",
-		"test": "npm run examples && npx jest"
+		"test": "pnpm run examples && npx jest"
 	},
 	"keywords": [],
 	"author": "",
 	"license": "ISC",
 	"devDependencies": {
-		"@types/jest": "^29.5.5",
-		"@types/node": "^20.6.2",
-		"rimraf": "^5.0.1",
-		"ts-jest": "^29.1.1",
-		"ts-node": "^10.9.1",
+		"@types/jest": "^29.5.11",
+		"@types/node": "^20.11.10",
+		"rimraf": "^5.0.5",
+		"ts-jest": "^29.1.2",
+		"ts-node": "^10.9.2",
 		"tsconfig-paths": "^4.2.0",
-		"tsup": "^7.2.0",
-		"typescript": "^5.2.2"
+		"tsup": "^8.3.0",
+		"typescript": "^5.6.2"
 	},
 	"dependencies": {
-		"@taqueria/node-sdk": "^0.44.0",
-		"@taquito/michel-codec": "^18.0.0-RC.0",
-		"@taquito/signer": "^18.0.0-RC.0",
-		"@taquito/taquito": "^18.0.0-RC.0",
+		"@taqueria/node-sdk": "workspace:*",
+		"@taquito/michel-codec": "21.0.0",
+		"@taquito/signer": "21.0.0",
+		"@taquito/taquito": "21.0.0",
 		"bignumber.js": "^9.1.2",
-		"fast-glob": "^3.3.1"
+		"fast-glob": "^3.3.2"
 	},
 	"types": "index.esm.d.ts",
 	"jest": {

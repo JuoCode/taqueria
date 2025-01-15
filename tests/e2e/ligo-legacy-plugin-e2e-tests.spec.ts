@@ -237,7 +237,7 @@ describe('Ligo Plugin E2E Testing for Taqueria CLI', () => {
 				'│ Source                            │ Artifact                                      │',
 				'├───────────────────────────────────┼───────────────────────────────────────────────┤',
 				'│ counter-module-main.mligo/Counter │ artifacts/Counter.tz                          │',
-				'│                                   │ artifacts/Counter.default_storage.tz          │',
+				'│                                   │ artifacts/Counter.storage.initial_count.tz    │',
 				'│                                   │ artifacts/Counter.storage.another_count.tz    │',
 				'│                                   │ artifacts/Counter.parameter.increment_by_3.tz │',
 				'└───────────────────────────────────┴───────────────────────────────────────────────┘',
@@ -248,7 +248,7 @@ describe('Ligo Plugin E2E Testing for Taqueria CLI', () => {
 			const artifacts_list = await ls('./test-project/artifacts');
 			const expectedContracts = [
 				'Counter.tz',
-				'Counter.default_storage.tz',
+				'Counter.storage.initial_count.tz',
 				'Counter.storage.another_count.tz',
 				'Counter.parameter.increment_by_3.tz',
 			];
@@ -295,7 +295,7 @@ describe('Ligo Plugin E2E Testing for Taqueria CLI', () => {
 				'│ Source                            │ Artifact                                   │',
 				'├───────────────────────────────────┼────────────────────────────────────────────┤',
 				'│ counter-module-main.mligo/Counter │ artifacts/Counter.tz                       │',
-				'│                                   │ artifacts/Counter.default_storage.tz       │',
+				'│                                   │ artifacts/Counter.storage.initial_count.tz │',
 				'│                                   │ artifacts/Counter.storage.another_count.tz │',
 				'└───────────────────────────────────┴────────────────────────────────────────────┘',
 				'Compiled 1 contract(s) in "counter-module-main.mligo"',
@@ -804,7 +804,7 @@ describe('Ligo Plugin E2E Testing for Taqueria CLI', () => {
 			await cleanup();
 		});
 
-		// See https://github.com/pinnacle-labs/taqueria/issues/1870
+		// See https://github.com/tezostaqueria/taqueria/issues/1870
 		test('ligo task with install command does not result in an error', async () => {
 			const { execute, cleanup, exists } = await prepareEnvironment();
 			await execute('taq', 'init test-project');
@@ -891,7 +891,7 @@ describe('Ligo Plugin E2E Testing for Taqueria CLI', () => {
 					'│                                   │ artifacts/counter-main.parameter.increment_by_two.tz │',
 					'├───────────────────────────────────┼──────────────────────────────────────────────────────┤',
 					'│ counter-module-main.mligo/Counter │ artifacts/Counter.tz                                 │',
-					'│                                   │ artifacts/Counter.default_storage.tz                 │',
+					'│                                   │ artifacts/Counter.storage.initial_count.tz           │',
 					'│                                   │ artifacts/Counter.storage.another_count.tz           │',
 					'│                                   │ artifacts/Counter.parameter.increment_by_3.tz        │',
 					'├───────────────────────────────────┼──────────────────────────────────────────────────────┤',
@@ -921,8 +921,8 @@ describe('Ligo Plugin E2E Testing for Taqueria CLI', () => {
 	});
 
 	describe('regression tests', () => {
-		// See https://github.com/pinnacle-labs/taqueria/issues/1859
-		// See https://github.com/pinnacle-labs/taqueria/issues/1867
+		// See https://github.com/tezostaqueria/taqueria/issues/1859
+		// See https://github.com/tezostaqueria/taqueria/issues/1867
 		test('regression against #1859, ligo compile-all will not create infinite storage files', async () => {
 			const { execute, cleanup, writeFile, path: projectDir } = await prepareEnvironment();
 
@@ -956,7 +956,7 @@ describe('Ligo Plugin E2E Testing for Taqueria CLI', () => {
 			await cleanup();
 		});
 
-		// https://github.com/pinnacle-labs/taqueria/issues/1907
+		// https://github.com/tezostaqueria/taqueria/issues/1907
 		test('regression against #1907, compile task will NOT compile storage/parameter expressions for variables which were commented out', async () => {
 			const { execute, cleanup, spawn, writeFile, ls, path: projectDir } = await prepareEnvironment();
 

@@ -1,26 +1,32 @@
 class Taqueria < Formula
     desc "Extensible, open-source plugin-based framework and task runner for Tezos development with a CLI and a library of plugins."
     homepage "https://taqueria.io"
-    version "0.42.0"
-    head "https://github.com/pinnacle-labs/taqueria.git", :branch => "main"
-    url "https://github.com/pinnacle-labs/taqueria/archive/refs/tags/v0.42.0.tar.gz"
-    #url "https://github.com/pinnacle-labs/taqueria/archive/03c85ca453f5010df75e0357e6d8e940be1aec85.tar.gz" # v0.41.23
+    version "0.68.0"
+    head "https://github.com/tezostaqueria/taqueria.git", :branch => "main"
+    url "https://github.com/tezostaqueria/taqueria/archive/refs/tags/v0.68.0.tar.gz"
   
-    depends_on "node"
+    depends_on "node@20"
     depends_on "deno"
+    depends_on "pnpm"
   
     def install
+        # Check Node.js version and fail if v23 or later
+        node_version = Utils.popen_read("node", "-v").strip.delete_prefix("v").to_i
+        if node_version >= 23
+          odie "This formula is not compatible with Node.js v23 or later. Please use an earlier version of Node.js."
+        end
+
         # Append the path to npm to the PATH environment variable
         ENV["PATH"] = "/usr/local/bin:#{ENV["PATH"]}"
-        ENV['TAQ_VERSION'] = '0.41.0'
-        ENV['TAQ_BUILD'] = '0.41.0'
+        ENV['TAQ_VERSION'] = '0.68.0'
+        ENV['TAQ_BUILD'] = '0.68.0'
 
         # Install npm dependencies
-        system "npm install >install.log 2>&1"
+        system "pnpm install >install.log 2>&1"
         
         # Build types and binary
-        system "npm", "run", "build-types"
-        system "npm", "run", "build:binary"
+        system "pnpm", "run", "build-types"
+        system "pnpm", "run", "build:binary"
         
         # You might need to specify where to place the binary, and potentially 
         # other steps to finalize the installation.

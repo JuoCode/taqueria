@@ -1,0 +1,74 @@
+{
+	"name": "@taqueria/plugin-tezbox",
+	"version": "0.68.0",
+	"description": "A plugin for Taqueria providing local sandbox capabilities built on TezBox",
+	"keywords": [
+		"taqueria",
+		"plugin",
+		"tezbox",
+		"sandbox",
+		"local",
+		"pinnaclelabs",
+		"pinnacle-labs",
+		"tezos"
+	],
+	"targets": {
+		"default": {
+			"source": "./index.ts",
+			"distDir": "./",
+			"context": "node",
+			"isLibrary": true
+		}
+	},
+	"types": "./index.ts",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"build": "npx tsc -noEmit -p ./tsconfig.json && npx tsup",
+		"pluginInfo": "npx ts-node index.ts --taqRun pluginInfo --i18n {\"foo:\"\"bar\"}"
+	},
+	"author": "Taqueria",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/tezostaqueria/taqueria.git",
+		"directory": "taqueria-plugin-tezbox"
+	},
+	"dependencies": {
+		"@taqueria/node-sdk": "workspace:*",
+		"@taqueria/protocol": "workspace:*",
+		"@taquito/signer": "^21.0.0-beta.0",
+		"@types/hjson": "^2.4.6",
+		"async-retry": "^1.3.3",
+		"bignumber.js": "^9.1.2",
+		"bip39": "^3.1.0",
+		"fast-glob": "^3.3.2",
+		"hjson": "^3.2.2",
+		"http-proxy": "^1.18.1",
+		"portfinder": "^1.0.32",
+		"rambda": "^9.3.0"
+	},
+	"devDependencies": {
+		"@types/async-retry": "^1.4.8",
+		"@types/http-proxy": "^1.17.15",
+		"@types/node": "^22.7.4",
+		"tsup": "^8.3.0",
+		"typescript": "^5.6.2"
+	},
+	"tsup": {
+		"entry": [
+			"index.ts"
+		],
+		"sourcemap": true,
+		"target": "node16",
+		"outDir": "./",
+		"dts": true,
+		"clean": false,
+		"skipNodeModulesBundle": true,
+		"platform": "node",
+		"format": [
+			"esm",
+			"cjs"
+		]
+	},
+	"gitHead": "ff58a2fc06ad233869ad6be574093c8b3b272e2e"
+}

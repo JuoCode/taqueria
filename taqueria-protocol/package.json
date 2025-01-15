@@ -1,12 +1,17 @@
 {
 	"name": "@taqueria/protocol",
-	"version": "0.44.0",
+	"version": "0.68.0",
 	"description": "A TypeScript package which contains types that are to be shared between @taqueria/node-sdk and @taqueria/taqueria.",
 	"main": "index.js",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"build": "npx tsc --emitDeclarationOnly -p ./tsconfig.json && npx tsup",
-		"build-types": "npx ts-to-zod types.ts out/types-zod.ts && npx ts-node scripts/post-ts-to-zod.ts && npx ts-node scripts/build-types.ts"
+		"clean": "rm -f tsconfig.tsbuildinfo  *.js *.d.ts *.map out/*.js out/*.d.ts out/*.map out/types/*.js out/types/*.d.ts out/types/*.map",
+		"typecheck": "pnpm exec tsc --emitDeclarationOnly -p ./tsconfig.json",
+		"build": "pnpm run clean && pnpm run typecheck && pnpm exec tsup",
+		"build-zod": "pnpm exec ts-to-zod types.ts out/types-zod.ts",
+		"postbuild-zod": "pnpm exec ts-node scripts/post-ts-to-zod.ts",
+		"build-type-models": "pnpm exec ts-node scripts/build-types.ts",
+		"build-types": "pnpm run build-zod && pnpm run build-type-models"
 	},
 	"keywords": [
 		"taqueria",
@@ -18,22 +23,26 @@
 		"pinnacle-labs",
 		"protocol"
 	],
-	"author": "Pinnacle Labs",
+	"author": "Taqueria",
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/pinnacle-labs/taqueria.git",
+		"url": "https://github.com/tezostaqueria/taqueria.git",
 		"directory": "taqueria-protocol"
 	},
 	"bugs": {
-		"url": "https://github.com/pinnacle-labs/taqueria/issues"
+		"url": "https://github.com/tezostaqueria/taqueria/issues"
 	},
-	"homepage": "https://github.com/pinnacle-labs/taqueria#readme",
+	"homepage": "https://github.com/tezostaqueria/taqueria#readme",
 	"devDependencies": {
+		"@bevry/jsonfile": "^1.3.0",
+		"@types/node": "^20.16.10",
+		"@types/project-name-generator": "^2.1.3",
+		"@types/shell-quote": "^1.7.5",
 		"esbuild-plugin-text-replace": "^1.3.0",
-		"ts-to-zod": "^3.1.3",
-		"tsup": "^7.2.0",
-		"typescript": "^5.2.2"
+		"ts-to-zod": "^3.13.0",
+		"tsup": "^8.3.0",
+		"typescript": "^5.6.2"
 	},
 	"exports": {
 		".": "./index.js",
@@ -311,13 +320,23 @@
 		}
 	},
 	"dependencies": {
-		"@peculiar/webcrypto": "^1.4.3",
+		"@peculiar/webcrypto": "^1.4.5",
+		"@taquito/signer": "21.0.0",
+		"@taquito/taquito": "21.0.0",
+		"@taquito/utils": "21.0.0",
 		"batching-toposort": "^1.2.0",
+		"esbuild": "^0.20.0",
 		"fluture": "^14.0.0",
-		"i18next": "^23.5.1",
-		"rambda": "^8.3.0",
-		"rambdax": "^10.0.0",
-		"zod": "^3.22.2"
+		"i18next": "^23.15.1",
+		"node-fetch": "^3.3.2",
+		"rambda": "^9.3.0",
+		"rambdax": "^11.2.0",
+		"shell-quote": "^1.8.1",
+		"stacktrace-js": "^2.0.2",
+		"ts-pattern": "^5.4.0",
+		"why-is-node-running": "^2.2.2",
+		"yargs": "^17.7.2",
+		"zod": "^3.23.8"
 	},
 	"gitHead": "ff58a2fc06ad233869ad6be574093c8b3b272e2e"
 }

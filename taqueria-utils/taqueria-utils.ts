@@ -2,12 +2,15 @@ import * as SanitizedAbsPath from '@taqueria/protocol/SanitizedAbsPath';
 import * as TaqError from '@taqueria/protocol/TaqError';
 import { readJsonFileInterceptConfig, writeJsonFileInterceptConfig } from '@taqueria/protocol/types-config-files';
 import * as Url from '@taqueria/protocol/Url';
-import { render } from 'eta';
+import { copy } from 'deno-stdlib-io-copy';
+import { Eta } from 'eta';
 import {
 	alt,
 	attemptP,
 	chain,
 	chainRej,
+	coalesce,
+	fork,
 	FutureInstance as Future,
 	map,
 	mapRej,
@@ -20,7 +23,6 @@ import { pipe } from 'fun';
 import * as jsonc from 'jsonc';
 import { dirname, join as _joinPaths } from 'path';
 import { memoize as memoizeIt } from 'rambdax';
-import { copy } from 'streams';
 import { UtilsDependencies } from './taqueria-utils-types.ts';
 
 export const decodeJson = <T>(encoded: string): Future<TaqError.t, T> => {
@@ -218,8 +220,10 @@ export const joinPaths = _joinPaths;
 
 export const dirOf = dirname;
 
-export const renderTemplate = (template: string, values: Record<string, unknown>): string =>
-	render(template, values) as string;
+export const renderTemplate = (template: string, values: Record<string, unknown>): string => {
+	const eta = new Eta({ views: './templates' });
+	return eta.renderString(template, values);
+};
 
 export const toPromise = <T>(f: Future<TaqError.t, T>): Promise<T> =>
 	pipe(
@@ -278,10 +282,47 @@ export const inject = (deps: UtilsDependencies) => {
 				map(() => destinationPath),
 			);
 
+	const execWithoutShell = (command: string, commandArgs?: string[], opts?: Deno.CommandOptions) =>
+		attemptP<TaqError.t, [number, string, string]>(async () => {
+			const cmd = new Deno.Command(command, {
+				args: commandArgs,
+				...opts,
+				stdout: 'inherit',
+			});
+
+			const child = cmd.spawn();
+			const status = await child.status;
+
+			return [status.code, '', ''];
+		});
+
+	const decodeText = (result: Deno.CommandOutput): Promise<[string, string]> => {
+		const textDecoder = new TextDecoder();
+		let output = '', errOutput = '';
+		try {
+			output = textDecoder.decode(result.stdout);
+		} catch {
+		}
+
+		try {
+			errOutput = textDecoder.decode(result.stderr);
+		} catch {
+		}
+		return Promise.resolve([output, errOutput]);
+	};
+
 	const execText = (
 		cmdTemplate: string,
 		inputArgs: Record<string, unknown>,
 		bufferOutput = false,
+		cwd?: SanitizedAbsPath.t,
+	): Future<TaqError.t, [number, string, string]> =>
+		execCmd(cmdTemplate, inputArgs, bufferOutput ? decodeText : undefined, cwd);
+
+	const execCmd = (
+		cmdTemplate: string,
+		inputArgs: Record<string, unknown>,
+		bufferOutput?: (result: Deno.CommandOutput) => Promise<[string, string]>,
 		cwd?: SanitizedAbsPath.t,
 	): Future<TaqError.t, [number, string, string]> =>
 		attemptP(async () => {
@@ -319,42 +360,44 @@ export const inject = (deps: UtilsDependencies) => {
 					previous,
 				} as TaqError.t;
 			}
+			let subprocess: Deno.ChildProcess;
 			try {
-				const process = Deno.run({
-					cmd: ['sh', '-c', `${command}`],
-					cwd,
-					stdout: 'piped',
-					stderr: 'piped',
-				});
+				let output = '', errOutput = '', code = 0;
+				const cmd = new Deno.Command('sh', { cwd: cwd, stdout: 'piped', 'stderr': 'piped', args: ['-c', command] });
+				subprocess = cmd.spawn();
 
-				// Output for the subprocess' stderr should be copied to the parent stderr
-				const errOutput = await (async () => {
-					if (bufferOutput) {
-						const output = await process.stderrOutput();
-						const decoder = new TextDecoder();
-						return decoder.decode(output);
-					} else {
-						await copy(process.stderr, stderr);
-						process.stderr.close();
+				if (bufferOutput) {
+					const result = await subprocess.output();
+					[output, errOutput] = await bufferOutput(result);
+				} else {
+					const stdoutReader = subprocess.stdout.getReader();
+					try {
+						while (true) {
+							const { done, value } = await stdoutReader.read();
+							if (value) await stdout.write(value);
+							if (done) break;
+						}
+					} finally {
+						stdoutReader.releaseLock();
 					}
-				})();
 
-				// Get output. Buffer if desired
-				const output = await (async () => {
-					if (bufferOutput) {
-						const output = await process.output();
-						const decoder = new TextDecoder();
-						return decoder.decode(output);
-					} else {
-						await copy(process.stdout, stdout);
-						process.stdout.close();
+					// Manually read from the subprocess stderr and write to Deno.stderr
+					const stderrReader = subprocess.stderr.getReader();
+					try {
+						while (true) {
+							const { done, value } = await stderrReader.read();
+							if (value) await stderr.write(value);
+							if (done) break;
+						}
+					} finally {
+						stderrReader.releaseLock();
 					}
-				})();
+				}
 
 				// Wait for subprocess to exit
-				const status = await process.status();
-				Deno.close(process.rid);
-				return [status.code, output ?? '', errOutput ?? ''];
+				const status = await subprocess.status;
+				code = status.code;
+				return [code, output ?? '', errOutput ?? ''];
 			} catch (previous) {
 				throw {
 					kind: 'E_FORK',
@@ -385,11 +428,13 @@ export const inject = (deps: UtilsDependencies) => {
 		dirOf,
 		renderTemplate,
 		execText,
+		execCmd,
 		toPromise,
 		stdout,
 		stderr,
 		eager,
 		taqResolve,
 		appendTextFile,
+		execWithoutShell,
 	};
 };

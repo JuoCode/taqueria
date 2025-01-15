@@ -1,14 +1,8 @@
 import * as SanitizedAbsPath from '@taqueria/protocol/SanitizedAbsPath';
 import * as TaqError from '@taqueria/protocol/TaqError';
+import { assert, assertEquals, assertInstanceOf, assertRejects, unreachable } from 'deno-asserts';
+import { exists } from 'deno-stdlib-fs';
 import { fork } from 'fluture';
-import { exists } from 'https://deno.land/std@0.132.0/fs/mod.ts';
-import {
-	assert,
-	assertEquals,
-	assertInstanceOf,
-	assertRejects,
-	unreachable,
-} from 'https://deno.land/std@0.141.0/testing/asserts.ts';
 import { inject } from '../../../taqueria-utils/taqueria-utils.ts';
 import { MockWriter } from '../helpers.ts';
 const {
@@ -40,7 +34,7 @@ Deno.test('Positive scenario test for {decodeJson} function', () => {
 
 // TODO: Michael to help with solution for return ()
 // This test was built to try to test return () => {} (line 16)
-// https://github.com/pinnacle-labs/taqueria/issues/202
+// https://github.com/tezostaqueria/taqueria/issues/202
 Deno.test('Positive scenario test for {decodeJson} function to return () => {}', () => {
 	const result = decodeJson('{}');
 	const assertSuccess = (testJsonOutput: any) => assertEquals(testJsonOutput, {});
@@ -171,7 +165,6 @@ Deno.test('execText() can execute a command without buffering', async () => {
 	const stdErr = stderr as MockWriter;
 	stdOut.clear();
 	stdErr.clear();
-
 	const retval = await toPromise(execText('echo foobar', {}));
 	assert(Array.isArray(retval));
 	assertEquals(retval[0], 0);

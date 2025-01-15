@@ -34,7 +34,7 @@ describe('Archetype Plugin E2E Testing for Taqueria CLI', () => {
 
 	test('archetype plugin will support cli options', async () => {
 		const { execute, cleanup, spawn } = await prepareEnvironment();
-		const { waitForText } = await spawn('taq', 'init test-project --debug');
+		const { waitForText } = await spawn('taq', 'init test-project');
 		await waitForText("Project taq'ified!");
 
 		const { stdout } = await execute('taq', 'install ../taqueria-plugin-archetype', './test-project');
@@ -52,7 +52,7 @@ describe('Archetype Plugin E2E Testing for Taqueria CLI', () => {
 	});
 
 	// this isn't working. should it? should compile find all files in contracts dir?
-	// see https://github.com/pinnacle-labs/taqueria/issues/1678
+	// see https://github.com/tezostaqueria/taqueria/issues/1678
 	// manually confirmed to fail in pre-release v0.25.23-rc
 	test.skip('compile will compile one contract under contracts folder without a parameter', async () => {
 		const { execute, cleanup, writeFile, exists } = await prepareEnvironment();
@@ -90,7 +90,7 @@ describe('Archetype Plugin E2E Testing for Taqueria CLI', () => {
 		await cleanup();
 	});
 
-	// blocked by https://github.com/pinnacle-labs/taqueria/issues/1678
+	// blocked by https://github.com/tezostaqueria/taqueria/issues/1678
 	// manually confirmed to fail in pre-release v0.25.23-rc
 	test.skip('compile will compile multiple contracts in the contracts folder', async () => {
 		const { execute, cleanup, writeFile, exists } = await prepareEnvironment();

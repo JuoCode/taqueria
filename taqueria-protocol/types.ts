@@ -51,7 +51,7 @@ export type Option = {
 	flag: Verb;
 	description: NonEmptyString;
 	defaultValue?: string | number | boolean;
-	type?: 'string' | 'number' | 'boolean';
+	type?: 'string' | 'number' | 'boolean' | 'count';
 	required?: boolean;
 	boolean?: boolean;
 	choices?: NonEmptyString[];
@@ -523,7 +523,8 @@ export type SandboxConfig = {
 	rpcUrl: Url; // should this be optional?
 	protocol?: EconomicalProtocolHash;
 	plugin?: Verb;
-
+	blockTime?: number;
+	baking?: 'enabled' | 'disabled';
 	// TODO: This causes a type conflict and is not supported
 	// accounts?: {
 	// 	default: NonEmptyString;

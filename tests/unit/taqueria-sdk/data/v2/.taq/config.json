@@ -6,31 +6,31 @@
 	"accounts": {
 		"bob": {
 			"balance": {
-				"amount": "3_000_000_000",
+				"amount": "30_000_000",
 				"units": "mutez"
 			}
 		},
 		"alice": {
 			"balance": {
-				"amount": "3_000_000_000",
+				"amount": "30_000_000",
 				"units": "mutez"
 			}
 		},
 		"john": {
 			"balance": {
-				"amount": "3_000_000_000",
+				"amount": "30_000_000",
 				"units": "mutez"
 			}
 		},
 		"jane": {
 			"balance": {
-				"amount": "3_000_000_000",
+				"amount": "30_000_000",
 				"units": "mutez"
 			}
 		},
 		"joe": {
 			"balance": {
-				"amount": "3_000_000_000",
+				"amount": "30_000_000",
 				"units": "mutez"
 			}
 		}
@@ -51,7 +51,7 @@
 		"testing": {
 			"type": "simple",
 			"label": "ghostnet",
-			"rpcUrl": "https://rpc.ghostnet.teztnets.xyz/",
+			"rpcUrl": "https://ghostnet.ecadinfra.com",
 			"protocol": "PtLimaPtLMwfNinJi9rCfDPWea8dFgTZ1MeJ9f1m2SRic6ayiwW"
 		}
 	},

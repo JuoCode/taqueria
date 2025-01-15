@@ -12,7 +12,7 @@ import {
 	updateAddressAlias,
 } from '@taqueria/node-sdk';
 import { OperationContentsAndResultOrigination } from '@taquito/rpc';
-import { TezosToolkit, WalletOperationBatch } from '@taquito/taquito';
+import { OriginationWalletOperation, TezosToolkit, WalletOperationBatch } from '@taquito/taquito';
 import { BatchWalletOperation } from '@taquito/taquito/dist/types/wallet/batch-operation';
 import { basename, extname, join } from 'path';
 import {
@@ -78,71 +78,64 @@ const getContractInfo = async (parsedArgs: Opts): Promise<ContractInfo> => {
 	};
 };
 
-const createBatchForOriginate = (tezos: TezosToolkit, contractsInfo: ContractInfo[]): WalletOperationBatch =>
+const createBatchForOriginate = (
+	tezos: TezosToolkit,
+	contractsInfo: ContractInfo[],
+	gasLimit?: number,
+	storageLimit?: number,
+	fee?: number,
+): WalletOperationBatch =>
 	contractsInfo.reduce((acc, contractInfo) =>
 		acc.withOrigination({
+			gasLimit,
+			storageLimit,
+			fee,
 			code: contractInfo.code,
 			init: contractInfo.initStorage,
 			balance: contractInfo.mutezTransfer.toString(),
 			mutez: true,
 		}), tezos.wallet.batch());
 
-// Provide a means to clear intervals that were created but not cleaned up in either
-// Taquito or RxJS. This is a hack to prevent the program from hanging after all promises have resolved.
-function withIntervalHack(fn: CallableFunction) {
-	return async function(...args: unknown[]) {
-		const originalSetInterval = setInterval;
-		const intervals: NodeJS.Timeout[] = [];
-
-		// Override global setInterval
-		// @ts-ignore
-		global.setInterval = (callback, delay) => {
-			const id = originalSetInterval(callback, delay);
-			intervals.push(id);
-			return id;
-		};
-
-		try {
-			return await fn(...args);
-		} finally {
-			// Clear intervals and restore original setInterval
-			intervals.forEach(id => clearInterval(id));
-			global.setInterval = originalSetInterval;
-		}
-	};
-}
-
-const performOriginateOps = withIntervalHack((
+const performOriginateOps = async (
 	tezos: TezosToolkit,
 	env: string,
-	contractsInfo: ContractInfo[],
+	contractsInfo: ContractInfo,
 	maxTimeout: number,
 	isSandbox = false,
-): Promise<BatchWalletOperation> => {
-	const batch = createBatchForOriginate(tezos, contractsInfo);
-
+	gasLimit?: number,
+	storageLimit?: number,
+	fee?: number,
+): Promise<OriginationWalletOperation> => {
 	try {
-		return doWithin<BatchWalletOperation>(maxTimeout, async () => {
-			const op = await batch.send();
-			await op.confirmation(isSandbox ? 1 : 3);
-			return op;
+		const result = await tezos.wallet.originate({
+			code: contractsInfo.code,
+			init: contractsInfo.initStorage,
+			balance: contractsInfo.mutezTransfer.toString(),
+			mutez: true,
+			fee,
+			gasLimit,
+			storageLimit,
 		});
+
+		const op = await result.send();
+		await op.confirmation(isSandbox ? 1 : 3);
+		return op;
 	} catch (err) {
 		return handleOpsError(err, env);
 	}
-});
+};
 
 const prepContractInfoForDisplay = async (
 	parsedArgs: Opts,
 	tezos: TezosToolkit,
 	contractInfo: ContractInfo,
-	op: BatchWalletOperation,
+	op: OriginationWalletOperation,
 ): Promise<TableRow> => {
 	const protocolArgs = RequestArgs.create(parsedArgs);
 	const operationResults = await op.operationResults();
 	const originationResults = (operationResults ?? [])
 		.filter(result => result.kind === 'origination')
-		.map(result => result as OperationContentsAndResultOrigination);
+		.map(result => result as unknown as OperationContentsAndResultOrigination);
 
 	// Length should be 1 since we are batching originate operations into one
 	const result = originationResults.length === 1 ? originationResults[0] : undefined;
@@ -179,14 +172,32 @@ const originate = async (parsedArgs: Opts): Promise<void> => {
 		const op = await performOriginateOps(
 			tezos,
 			getCurrentEnvironment(protocolArgs),
-			[contractInfo],
+			contractInfo,
 			parsedArgs.timeout,
 			envType !== 'Network',
+			parsedArgs.gasLimit,
+			parsedArgs.storageLimit,
+			parsedArgs.fee,
 		);
 
 		const contractInfoForDisplay = await prepContractInfoForDisplay(parsedArgs, tezos, contractInfo, op);
 		return sendJsonRes([contractInfoForDisplay]);
-	} catch {
+	} catch (e) {
+		if (e instanceof Error && e.message.includes('503')) {
+			try {
+				const [envType, nodeConfig] = await getEnvTypeAndNodeConfig(protocolArgs, env);
+				if (envType === 'Network' && nodeConfig.rpcUrl.includes('ghostnet')) {
+					return sendAsyncErr(
+						`❌ Ghostnet is returning 503 errors, indicating that the server is under heavy load.\nPlease try again later.`,
+					);
+				}
+				return sendAsyncErr(
+					`❌ The node you are trying to connect to is not available\nPlease check if the node is running and the URL is correct in your config.json`,
+				);
+			} catch {
+				// Resort to the default error message
+			}
+		}
 		return sendAsyncErr('No operations performed');
 	}
 };

@@ -16,6 +16,11 @@ import {
 } from '@taqueria/protocol';
 import * as PluginActionName from '@taqueria/protocol/PluginActionName';
 import * as TaqError from '@taqueria/protocol/TaqError';
+import { titleCase } from 'case';
+import { Table } from 'cliffy';
+import * as chalk from 'colors';
+import yargs from 'deno-yargs';
+import type { Arguments } from 'deno-yargs-types';
 import {
 	attemptP,
 	bichain,
@@ -33,11 +38,7 @@ import {
 	reject,
 	resolve,
 } from 'fluture';
-import { titleCase } from 'https://deno.land/x/case@2.1.1/mod.ts';
-import { Table } from 'https://deno.land/x/cliffy@v0.20.1/table/mod.ts';
-import { identity, pipe } from 'https://deno.land/x/fun@v1.0.0/fns.ts';
-import type { Arguments } from 'https://deno.land/x/yargs@v17.4.0-deno/deno-types.ts';
-import yargs from 'https://deno.land/x/yargs@v17.4.0-deno/deno.ts';
+import { identity, pipe } from 'fun';
 import { has, last, uniq } from 'rambda';
 import { match, P } from 'ts-pattern';
 import * as Analytics from './analytics.ts';
@@ -58,6 +59,7 @@ const getCliArgs = () => {
 // Get utils
 const {
 	execText,
+	execWithoutShell,
 	joinPaths,
 	mkdir,
 	readJsonFile,
@@ -217,26 +219,60 @@ const initCLI = (env: EnvVars, args: DenoArgs, i18n: i18n.t) => {
 			),
 	});
 
+	// Add "start" task to run start-up script for a project
+	globalTasks.registerTask({
+		taskName: NonEmptyString.create('start'),
+		aliases: [],
+		configure: (cliConfig: CLIConfig) =>
+			cliConfig.command(
+				'start',
+				'Run the start routine for a scaffolded project',
+			),
+		handler: parsedArgs =>
+			pipe(
+				readJsonFile<{ scripts: { start?: string } }>(joinPaths(parsedArgs.projectDir, 'package.json')),
+				chain(contents =>
+					contents.scripts.start
+						? execWithoutShell('npm', ['run', 'start'], { cwd: parsedArgs.projectDir })
+						: execWithoutShell('echo', ['No start script provided for this project.'])
+				),
+				map(() => {}),
+			),
+		isRunning: (parsedArgs => parsedArgs._.length === 1 && parsedArgs._.includes('start')),
+	});
+
+	const scaffoldMap = {
+		'getting-started-ligo': 'https://github.com/tezostaqueria/taqueria-getting-started-ligo-scaffold',
+		'getting-started-smartpy': 'https://github.com/tezostaqueria/taqueria-getting-started-smartpy-scaffold',
+		'getting-started-tzcompose': 'https://github.com/tezostaqueria/taqueria-getting-started-tzcompose-scaffold',
+		'taco-shop': 'https://github.com/tezostaqueria/taqueria-scaffold-taco-shop',
+	};
+
 	// Add "scaffold" task to scaffold full projects
 	globalTasks.registerTask({
-		taskName: NonEmptyString.create('scaffold'),
-		aliases: [],
+		taskName: NonEmptyString.create('new'),
+		aliases: [NonEmptyString.create('scaffold')],
 		configure: (cliConfig: CLIConfig) =>
 			cliConfig
 				.command(
-					'scaffold [scaffoldUrl] [scaffoldProjectDir]',
+					[
+						'new [scaffoldUrl] [scaffoldProjectDir]',
+						'scaffold [scaffoldUrl] [scaffoldProjectDir]',
+					],
 					i18n.__('scaffoldDesc'),
 					(yargs: Arguments) => {
 						yargs
 							.positional('scaffoldUrl', {
-								describe: i18n.__('scaffoldUrlDesc'),
+								describe: i18n.__('scaffoldUrlDesc')
+									+ `. You may use the following aliases: ${Object.keys(scaffoldMap).join(', ')}`,
 								type: 'string',
-								default: 'https://github.com/pinnacle-labs/taqueria-scaffold-taco-shop.git',
+								default: 'getting-started-ligo',
+								coerce: (url: string) => scaffoldMap[url as keyof typeof scaffoldMap] ?? url,
 							})
 							.positional('scaffoldProjectDir', {
 								type: 'string',
 								describe: i18n.__('scaffoldProjectDirDesc'),
-								default: './taqueria-taco-shop',
+								default: './my-taqueria-project',
 							})
 							.option('branch', {
 								alias: 'b',
@@ -523,7 +559,7 @@ const demandCommand = (cliConfig: CLIConfig) => cliConfig.demandCommand(1) as CL
 
 const postInitCLI = (env: EnvVars, args: DenoArgs, parsedArgs: SanitizedArgs.t, i18n: i18n.t) =>
 	pipe(
-		initCLI(env, args, i18n),
+		initCLI(env, args, i18n), // resetting yargs instance does not work so we create a new one
 		demandCommand,
 		extendCLI(env, parsedArgs, i18n),
 	);
@@ -649,7 +685,14 @@ const initProject = (
 		mkInitialDirectories(projectDir, maxConcurrency, i18n),
 		chain(_ => exec('npm init -y 2>&1 > /dev/null', {}, false, projectDir)),
 		chain(_ => preInstallPluginsOnInit(parsedArgs, projectDir)),
-		map(_ => Deno.run({ cmd: ['sh', '-c', 'taq'], cwd: projectDir, stdout: 'piped', stderr: 'piped' })), // temp workaround for https://github.com/pinnacle-labs/taqueria/issues/528
+		map(_ => {
+			const command = new Deno.Command('taq', {
+				cwd: projectDir,
+				stdout: 'piped',
+				stderr: 'piped',
+			});
+			return command.output();
+		}),
 		chain(_ => createGitIgnoreFile(projectDir)),
 		map(_ => i18n.__('bootstrapMsg')),
 	);
@@ -705,7 +748,15 @@ const scaffoldProject =
 
 				log("    ✓ Project Taq'ified \n");
 
-				return ('🌮 Project created successfully 🌮');
+				log('🌮 Project created successfully 🌮\n');
+
+				log(
+					`${
+						chalk.yellow('NEXT STEP')
+					}: - Run the following to change to the directory of your new project and start it:`,
+				);
+
+				return chalk.bold(`cd ${abspath} && taq start\n`);
 			},
 		);
 
@@ -1222,7 +1273,7 @@ const extendCLI = (env: EnvVars, parsedArgs: SanitizedArgs.t, i18n: i18n.t) => (
 		//
 		// For some reason, the original parsedArgs is getting mutated by yargs in the second parseArgs() call.
 		// I'll be coming back to see what is going on here.
-		// https://github.com/pinnacle-labs/taqueria/issues/1614
+		// https://github.com/tezostaqueria/taqueria/issues/1614
 		chain(inputArgs => SanitizedArgs.of({ ...inputArgs, _: parsedArgs._ })),
 		chain(parsedArgs => {
 			if (internalTasks.isTaskRunning(parsedArgs)) return internalTasks.handle(parsedArgs);
@@ -1296,9 +1347,9 @@ export const normalizeErr = (err: TaqError.t | TaqError.E_TaqError | Error) => {
 };
 
 export const displayError = (cli: CLIConfig) => (err: Error | TaqError.t) => {
-	const inputArgs = (cli.parsed as unknown as { argv: Record<string, unknown> }).argv;
+	const inputArgs = (cli.parsed as unknown as { argv: Record<string, unknown> }).argv || {};
 
-	if (!inputArgs.fromVsCode && (isTaqError(err) && err.kind !== 'E_EXEC')) {
+	if (Object.entries(inputArgs).length && !inputArgs.fromVsCode && (isTaqError(err) && err.kind !== 'E_EXEC')) {
 		cli.getInternalMethods().getUsageInstance().showHelp(inputArgs.help ? 'log' : 'error');
 	}
 
@@ -1329,7 +1380,8 @@ export const displayError = (cli: CLIConfig) => (err: Error | TaqError.t) => {
 			.with({ kind: 'E_OPT_IN_WARNING' }, err => [22, err.msg])
 			.with({ kind: 'E_INVALID_OPTION' }, err => [23, err.msg])
 			.with({ kind: 'E_TAQ_PROJECT_NOT_FOUND' }, err => [24, err.msg])
-			.with({ message: P.string }, (err: Error) => [128, err.message])
+			// Internal error. Show full trace
+			.with({ message: P.string }, (err: Error) => [128, err])
 			.exhaustive();
 
 		const [exitCode, msg] = res;

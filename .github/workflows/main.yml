@@ -1,131 +1,200 @@
+# .github/workflows/main.yml
+name: CI/CD Pipeline
+
 on:
   push:
-      branches:
-          - main
+    branches:
+      - main
   pull_request:
-      branches:
-          - main
+    branches:
+      - main
+
 jobs:
-  # Builds the 'taq' binary on Linux and MacOS. Then create an archive of the work we've done and store it as an artifact to use in later jobs.
-  build-binaries:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        node: [16]
-    runs-on: ${{ matrix.os }}
+  # Build the 'taq' binary on Ubuntu
+  build-binary-ubuntu:
+    runs-on: ubuntu-latest
     env:
       DENO_DIR: ./.deno
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: "npm"
-          
-      - uses: denoland/setup-deno@v1
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.1.4
 
       - name: Restore Deno Cache
-        uses: actions/cache/restore@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.DENO_DIR }}
-          key: ${{ runner.os }}-deno-${{ hashFiles('deno.lock') }}
+          key: ubuntu-deno-${{ hashFiles('deno.lock') }}
 
-      - name: Build Binaries
-        run: |
-          npm ci
-          npm run build-types
-          npm run build:binary
-          
+      - name: Install dependencies
+        run: rm -rf node_modules && pnpm install
+
+      - name: Build types
+        run: pnpm run build-types
+
+      - name: Build binary
+        run: pnpm run build:binary
+
       - name: Save Deno Cache
-        uses: actions/cache/save@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.DENO_DIR }}
-          key: ${{ runner.os }}-deno-${{ hashFiles('deno.lock') }}
+          key: ubuntu-deno-${{ hashFiles('deno.lock') }}
 
       - name: Store artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          name: taq-${{ matrix.os }}
+          name: taq-ubuntu-latest
           path: taq
 
-      - name: Create archive of work
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        # We need to ignore the exit code of tar because it will exit with 1 if
-        # a file is being written to while tar is trying to read it. This is
-        # expected behavior and we don't want to fail the build because of it.
+      - name: Create work archive
         run: |
           set +e
-          tar -czpf work.tar.gz .
+          tar -czpf work-build-ubuntu.tar.gz .
           exitcode=$?
           if [ "$exitcode" != "1" ] && [ "$exitcode" != "0" ]; then
             exit $exitcode
           fi
           set -e
 
-      - name: Store work
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: actions/upload-artifact@v2
+      - name: Upload work archive
+        uses: actions/upload-artifact@v4
         with:
-          name: work-${{ matrix.os }}
-          path: work.tar.gz
+          name: work-build-ubuntu-latest
+          path: work-build-ubuntu.tar.gz
           retention-days: 1
 
-  # Builds all NPM packages. Then update the archive of the work we've done and store it as an artifact to use in later jobs.
+  # Build the 'taq' binary on MacOS
+  build-binary-macos:
+    runs-on: macos-latest
+    env:
+      DENO_DIR: ./.deno
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.1.4
+
+      - name: Restore Deno Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DENO_DIR }}
+          key: macos-deno-${{ hashFiles('deno.lock') }}
+
+      - name: Install dependencies
+        run: rm -rf node_modules && pnpm install
+
+      - name: Build types
+        run: pnpm run build-types
+
+      - name: Build binary
+        run: pnpm run build:binary
+
+      - name: Save Deno Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.DENO_DIR }}
+          key: macos-deno-${{ hashFiles('deno.lock') }}
+
+      - name: Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: taq-macos-latest
+          path: taq
+
+      - name: Create work archive
+        run: |
+          set +e
+          tar -czpf work-build-macos.tar.gz .
+          exitcode=$?
+          if [ "$exitcode" != "1" ] && [ "$exitcode" != "0" ]; then
+            exit $exitcode
+          fi
+          set -e
+
+      - name: Upload work archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: work-build-macos-latest
+          path: work-build-macos.tar.gz
+          retention-days: 1
+
+  # Build NPM packages using the work archive from Ubuntu build
   build-packages:
-      needs: build-binaries
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v2
+    needs: build-binary-ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-        - uses: actions/setup-node@v3
-          with:
-            node-version: 18
-            cache: "npm"
-            
-        - uses: denoland/setup-deno@v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-        - name: Download work archive
-          uses: actions/download-artifact@v2
-          with:
-            name: work-ubuntu-latest
-            path: .
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
-        - name: Extract work archive
-          run: tar -xzpf work.tar.gz
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.1.4
 
-        - name: Build packages
-          run: npm run build:packages
+      - name: Download work archive
+        uses: actions/download-artifact@v4
+        with:
+          name: work-build-ubuntu-latest
+          path: .
 
-        - name: Get VSIX
-          id: vsix
-          run: echo "artifact=$(ls taqueria-vscode-extension/*.vsix)" >> "$GITHUB_OUTPUT"
+      - name: Extract work archive
+        run: tar -xzpf work-build-ubuntu.tar.gz
 
-        - name: Upload VSCode Extension
-          uses: actions/upload-artifact@v2
-          with:
-            name: taqueria.vsix
-            path: ${{ steps.vsix.outputs.artifact }}
+      - name: Build packages
+        run: pnpm run build:packages
 
-        - name: Create archive of work
-          # We need to ignore the exit code of tar because it will exit with 1 if
-          # a file is being written to while tar is trying to read it. This is
-          # expected behavior and we don't want to fail the build because of it.
-          run: |
-            set +e
-            tar -czpf work.tar.gz .
-            exitcode=$?
-            if [ "$exitcode" != "1" ] && [ "$exitcode" != "0" ]; then
-              exit $exitcode
-            fi
-            set -e
+      - name: Get VSIX
+        id: vsix
+        run: echo "artifact=$(ls taqueria-vscode-extension/*.vsix)" >> "$GITHUB_OUTPUT"
 
-        - name: Store work
-          uses: actions/upload-artifact@v2
-          with:
-            name: work-ubuntu-latest
-            path: work.tar.gz
-            retention-days: 1
+      - name: Upload VSCode Extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: taqueria.vsix
+          path: ${{ steps.vsix.outputs.artifact }}
+
+      - name: Create work archive
+        run: |
+          set +e
+          tar -czpf work-packages.tar.gz .
+          exitcode=$?
+          if [ "$exitcode" != "1" ] && [ "$exitcode" != "0" ]; then
+            exit $exitcode
+          fi
+          set -e
+
+      - name: Upload work archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: work-packages-latest
+          path: work-packages.tar.gz
+          retention-days: 1
 
   # Check whether this commit is related to a PR or if the commit message references an issue
   check_is_pr_or_issue:
@@ -134,7 +203,7 @@ jobs:
       should_run: ${{ steps.check_pr_or_issue.outputs.should_run }}
       issue_number: ${{ steps.check_pr_or_issue.outputs.issue_number }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 2
       - name: Check for PR or Issue
@@ -145,8 +214,8 @@ jobs:
           if [[ ! -z "${{ github.event.pull_request.number }}" || ! -z "$ISSUE_ID" ]]; then
             SHOULD_RUN="yes"
           fi
-          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
-          echo "issue_number=$ISSUE_ID" >> "$GITHUB_OUTPUT"
+          echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
+          echo "issue_number=$ISSUE_ID" >> $GITHUB_OUTPUT
 
   # Check whether this is a release
   check_is_release:
@@ -155,7 +224,7 @@ jobs:
       is_release: ${{ steps.check_release.outputs.is_release }}
       version: ${{ steps.check_release.outputs.version }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 1
       - name: Check for Release
@@ -168,77 +237,85 @@ jobs:
             IS_RELEASE="yes"
             echo "This is a final release"
           fi
-          echo "is_release=$IS_RELEASE" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-  
+          echo "is_release=$IS_RELEASE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
   # Gather package info for publishing
   gather-package-info:
+    needs: build-packages
     runs-on: ubuntu-latest
     outputs:
       taggedPackages: ${{ steps.gather-packages.outputs.taggedPackages }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-    - name: Gather package info
-      id: gather-packages
-      run: |
-        PACKAGES=$(npx lerna list --json)
-        TAGGED_PACKAGES=()
-        
-        for pkg in $(echo "${PACKAGES}" | jq -r '.[] | @base64'); do
-          pkg_name=$(echo "$pkg" | base64 --decode | jq -r '.name')
-          pkg_location=$(echo "$pkg" | base64 --decode | jq -r '.location')
-          pkg_tag=$(jq -r '.tag // "auto"' < "$pkg_location/package.json")
-          
-          TAGGED_PACKAGES+=("{\"name\":\"$pkg_name\",\"tag\":\"$pkg_tag\",\"location\":\"$pkg_location\"}")
-          TAGGED_PACKAGES_JSON="[$(IFS=,; echo "${TAGGED_PACKAGES[*]}")]"
-        done
-        echo $TAGGED_PACKAGES_JSON
-        echo "taggedPackages=$TAGGED_PACKAGES_JSON" >> "$GITHUB_OUTPUT"
-          
-  # Publish NPM packages to Github Packages
-  publish-packages:
-    needs: [build-packages, check_is_release, gather-package-info]
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        package: ${{fromJson(needs.gather-package-info.outputs.taggedPackages)}}
-    steps:
-      - name: Download work archive
-        uses: actions/download-artifact@v2
+      - uses: actions/setup-node@v4
         with:
-          name: work-ubuntu-latest
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Download work archive
+        uses: actions/download-artifact@v4
+        with:
+          name: work-packages-latest
           path: .
 
       - name: Extract work archive
-        run: tar -xzpf work.tar.gz
+        run: tar -xzpf work-packages.tar.gz
 
-      - uses: actions/setup-node@v3
+      - name: Gather package info
+        id: gather-packages
+        run: |
+          PACKAGES=$(npx lerna list --json)
+          TAGGED_PACKAGES=()
+          for pkg in $(echo "${PACKAGES}" | jq -r '.[] | @base64'); do
+            pkg_name=$(echo "$pkg" | base64 --decode | jq -r '.name')
+            pkg_location=$(echo "$pkg" | base64 --decode | jq -r '.location')
+            pkg_tag=$(jq -r '.tag // "auto"' < "$pkg_location/package.json")
+            TAGGED_PACKAGES+=("{\"name\":\"$pkg_name\",\"tag\":\"$pkg_tag\",\"location\":\"$pkg_location\"}")
+          done
+          TAGGED_PACKAGES_JSON="[$(IFS=,; echo "${TAGGED_PACKAGES[*]}")]"
+          echo "taggedPackages=$TAGGED_PACKAGES_JSON" >> $GITHUB_OUTPUT
+
+  # Publish NPM packages to npm registry
+  publish-packages:
+    needs:
+      - build-packages
+      - check_is_release
+      - gather-package-info
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.gather-package-info.outputs.taggedPackages) }}
+    steps:
+      - name: Download work archive
+        uses: actions/download-artifact@v4
         with:
-          node-version: 18
-          cache: "npm"
+          name: work-packages-latest
+          path: .
 
-      - name: Debug matrix variables
-        run: echo "PACKAGE_NAME=${{ matrix.package.name }}" && echo "PACKAGE_TAG=${{ matrix.package.tag }}" && echo "PACKAGE_LOCATION=${{ matrix.package.location }}"
+      - name: Extract work archive
+        run: tar -xzpf work-packages.tar.gz
 
-      - name: List env variables
-        run: env 
-           
-      # Publish packages
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Publish to npm
         run: |
           export HUSKY=0
-          rm work.tar.gz
+          rm work-packages.tar.gz
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           git config --global user.email "mweichert@gmail.com"
           git config --global user.name "Michael Weichert"
           git commit -am "chore: publish packages" --allow-empty
-          
-          # Determine the appropriate NPM tag for publishing
-          # If the "tag" property from package.json is set to "auto",
-          # we rely on the "is_release" flag.
-          # Otherwise, we use the specified tag in package.json which should be set to "beta", "alpha", etc.
           TAG=${{ matrix.package.tag }}
           if [ "$TAG" == "auto" ]; then
             TAG="dev"
@@ -246,18 +323,16 @@ jobs:
               TAG="latest"
             fi
           fi
-  
-          # Navigate to package directory
           cd ${{ matrix.package.location }}
-    
-          # Publish using npm with the determined tag
-          npm publish --tag $TAG
+          pnpm publish --no-git-checks --tag $TAG
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # Publish website
   publish-website:
-    needs: [build-binaries, check_is_release]
+    needs:
+      - build-packages
+      - check_is_release
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -265,48 +340,53 @@ jobs:
       TAQ_VERSION: ${{ needs.check_is_release.outputs.version }}
     steps:
       - name: Download work archive
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
-          name: work-ubuntu-latest
+          name: work-packages-latest
           path: .
 
       - name: Extract work archive
-        run: tar -xzpf work.tar.gz
+        run: tar -xzpf work-packages.tar.gz
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Build Website
-        run: |
-           npm run build-website
-      
+        run: pnpm run build-website
+
       - name: Publish Website (Preview)
-        id: publish-website-preview
         if: needs.check_is_release.outputs.is_release == 'no'
-        run: cd website && npm run deploy-preview
+        run: cd website && pnpm run deploy-preview
 
       - name: Publish Website (Production)
-        id: publish-website
         if: needs.check_is_release.outputs.is_release == 'yes'
-        run: cd website && npm run deploy
-          
-  # Publish binaries to Github Releases
+        run: cd website && pnpm run deploy
+
+  # Publish binaries to GitHub Releases
   publish-release:
-    needs: [build-binaries, build-packages, check_is_release]
+    needs:
+      - build-binary-ubuntu
+      - build-binary-macos
+      - build-packages
+      - check_is_release
     if: needs.check_is_release.outputs.is_release == 'yes'
     runs-on: ubuntu-latest
     steps:
       - name: Download taq binary for Linux
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: taq-ubuntu-latest
           path: taq-linux
 
       - name: Download taq binary for MacOS
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: taq-macos-latest
           path: taq-macos
-      
+
       - name: Download vscode extension
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: taqueria.vsix
           path: vscode-extension
@@ -327,7 +407,6 @@ jobs:
           prerelease: false
 
       - name: Upload Linux binary
-        id: upload-linux-binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -338,7 +417,6 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload MacOS binary
-        id: upload-macos-binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -349,7 +427,6 @@ jobs:
           asset_content_type: application/octet-stream
 
       - name: Upload VSCode Extension
-        id: upload-vsix
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -360,12 +437,14 @@ jobs:
           asset_content_type: application/octet-stream
 
   publish-vscode:
-    needs: [build-packages, check_is_release]
+    needs:
+      - build-packages
+      - check_is_release
     if: needs.check_is_release.outputs.is_release == 'yes'
     runs-on: ubuntu-latest
     steps:
       - name: Download vscode extension
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: taqueria.vsix
           path: vscode-extension
@@ -373,7 +452,7 @@ jobs:
       - name: Get VSIX
         id: vsix
         run: echo "artifact=$(ls vscode-extension/)" >> "$GITHUB_OUTPUT"
-      
+
       - name: Publish to Marketplace
         uses: HaaLeo/publish-vscode-extension@v1
         with:
@@ -382,35 +461,40 @@ jobs:
           preRelease: false
           registryUrl: https://marketplace.visualstudio.com
 
-
   # Add comment with published artifacts and packages
   update-comment:
-    needs: [publish-packages, check_is_pr_or_issue]
+    needs:
+      - publish-packages
+      - check_is_pr_or_issue
     if: needs.check_is_pr_or_issue.outputs.should_run == 'yes'
     runs-on: ubuntu-latest
-    steps: 
+    steps:
       - name: Download work archive
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
-          name: work-ubuntu-latest
+          name: work-packages-latest
           path: .
-  
+
       - name: Extract work archive
-        run: tar -xzpf work.tar.gz
-  
+        run: tar -xzpf work-packages.tar.gz
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Get version
         id: get_version
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
-  
+
       - name: List Lerna Packages
         id: list_packages
         run: |
           echo "PACKAGES<<EOF" >> $GITHUB_OUTPUT
           npx lerna ls --json | jq -r '.[] | "| \(.name) | \(.version) |"' >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
+
       - name: Update or Create comment
         uses: peter-evans/create-or-update-comment@v1
         with:
@@ -419,58 +503,68 @@ jobs:
           issue-number: ${{ github.event.pull_request.number || needs.check_is_pr_or_issue.outputs.issue_number }}
           body: |
             ## Published Binaries & Packages
-  
+
             | Published | Version |
             | :--- | :--- |
             | Taq Binary (MacOS) | [${{ steps.get_version.outputs.VERSION }}](https://github.com/${{ github.repository }}/actions/artifacts) |
             | Taq Binary (Windows) | [${{ steps.get_version.outputs.VERSION }}](https://github.com/${{ github.repository }}/actions/artifacts) |
             | VSIX for VSCode Extension | [${{ steps.get_version.outputs.VERSION }}](https://github.com/${{ github.repository }}/actions/artifacts) |
             ${{ steps.list_packages.outputs.PACKAGES }}
-            <!-- Add more rows for additional packages -->
-  
+
             > Note: You can install the latest development version of a package with `taq install @taqueria/[packageName]@dev`.
-  
+
           edit-mode: replace
 
+  # List E2E tests to run
   list-e2e-tests:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: List .spec.ts files
-        id: list
-        run: echo "files=$(ls tests/e2e/*.spec.ts | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
-
-      - name: Set matrix for next job
+      - name: List .spec.ts files and Set matrix
         id: set-matrix
-        run: echo 'matrix={"spec":${{ steps.list.outputs.files }}}' >> "$GITHUB_OUTPUT"
+        run: |
+          files=$(ls tests/e2e/*.spec.ts 2>/dev/null || true)
+          if [[ -z "$files" ]]; then
+            echo "matrix={\"spec\":[]}" >> $GITHUB_OUTPUT
+          else
+            files_json=$(printf '%s\n' "${files[@]}" | jq -R -s -c 'split("\n")[:-1]')
+            echo "matrix={\"spec\":${files_json}}" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Debug
-        run: echo ${{fromJson(steps.set-matrix.outputs.matrix)}}
-
+  # Run E2E tests
   run-e2e-tests:
     needs:
       - list-e2e-tests
       - build-packages
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{fromJson(needs.list-e2e-tests.outputs.matrix)}}
+      matrix:
+        spec: ${{ fromJson(needs.list-e2e-tests.outputs.matrix).spec != '' && fromJson(needs.list-e2e-tests.outputs.matrix).spec || '[]' }}
+
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
       - name: Download work archive
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
-          name: work-ubuntu-latest
+          name: work-packages-latest
           path: .
 
       - name: Extract work archive
-        run: tar -xzpf work.tar.gz
+        run: tar -xzpf work-packages.tar.gz
 
       - name: Run tests
         env:
@@ -479,47 +573,53 @@ jobs:
         run: |
           CWD=$(pwd)
           export PATH=$PATH:$CWD
-          npm run test:e2e -w tests ${{ matrix.spec }}
+          pnpm --filter @taqueria/tests run test:e2e ${{ matrix.spec }}
 
+  # List integration tests to run
   list-integration-tests:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: List .spec.ts files
-        id: list
-        run: echo "files=$(ls tests/integration/*.spec.ts | jq -R -s -c 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
-
-      - name: Set matrix for next job
+      - name: List .spec.ts files and Set matrix
         id: set-matrix
-        run: echo 'matrix={"spec":${{ steps.list.outputs.files }}}' >> "$GITHUB_OUTPUT"
+        run: |
+          files=$(ls tests/integration/*.spec.ts 2>/dev/null || true)
+          if [[ -z "$files" ]]; then
+            echo "matrix={\"spec\":[]}" >> $GITHUB_OUTPUT
+          else
+            files_json=$(printf '%s\n' "${files[@]}" | jq -R -s -c 'split("\n")[:-1]')
+            echo "matrix={\"spec\":${files_json}}" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Debug
-        run: echo ${{fromJson(steps.set-matrix.outputs.matrix)}}
-
+  # Run integration tests
   run-integration-tests:
     needs:
       - list-integration-tests
       - build-packages
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{fromJson(needs.list-integration-tests.outputs.matrix)}}
+      matrix:
+        spec: ${{ fromJson(needs.list-integration-tests.outputs.matrix).spec != '' && fromJson(needs.list-integration-tests.outputs.matrix).spec || '[]' }}
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: '20'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Download work archive
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
-          name: work-ubuntu-latest
+          name: work-packages-latest
           path: .
 
       - name: Extract work archive
-        run: tar -xzpf work.tar.gz
+        run: tar -xzpf work-packages.tar.gz
 
       - name: Run tests
         env:
@@ -528,29 +628,34 @@ jobs:
         run: |
           CWD=$(pwd)
           export PATH=$PATH:$CWD
-          npm run test:integration -w tests ${{ matrix.spec }}
+          pnpm --filter @taqueria/tests run test:integration ${{ matrix.spec }}
 
   # Run all unit tests
   run-unit-tests:
     needs:
-      - build-binaries
       - build-packages
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: '20'
 
-      - uses: denoland/setup-deno@v1
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.1.4
 
       - name: Download work archive
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
-          name: work-ubuntu-latest
+          name: work-packages-latest
           path: .
 
       - name: Extract work archive
-        run: tar -xzpf work.tar.gz
+        run: tar -xzpf work-packages.tar.gz
 
       - name: Run tests
         env:
@@ -561,4 +666,4 @@ jobs:
           CWD=$(pwd)
           export PATH=$PATH:$CWD
           export DENO_DIR=$CWD/.deno
-          npm run test:unit -w tests
+          pnpm run --filter @taqueria/tests test:unit

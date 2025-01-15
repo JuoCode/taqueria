@@ -17,6 +17,7 @@ export {
 	Task,
 } from '@taqueria/protocol';
 export * as Template from '@taqueria/protocol/Template';
+import { Contract } from '@taqueria/protocol/types';
 export { Protocol };
 import type { i18n } from '@taqueria/protocol/i18n';
 import load from '@taqueria/protocol/i18n';
@@ -58,7 +59,10 @@ const readJsonFileInner = <T>(filename: string): Promise<T> =>
 	readFile(filename, { encoding: 'utf-8' })
 		.then(JSON.parse)
 		.then(result => (result as T));
+
 export const readJsonFile = readJsonFileInterceptConfig(readJsonFileInner);
+
+export const readJsonFileWithoutTransform = readJsonFileInner;
 
 export type FilteredStdErr = {
 	skip: boolean;
@@ -119,23 +123,52 @@ const filterDockerImageMessages = (stderr: string) => {
 	return filteredStderr;
 };
 
-export const execCmd = (cmd: string): LikeAPromise<StdIO, ExecException & { stdout: string; stderr: string }> =>
+export const execCmd = (
+	cmd: string,
+	stdErrFilter?: (stderr: string) => string,
+): LikeAPromise<StdIO, ExecException & { stdout: string; stderr: string }> =>
 	new Promise((resolve, reject) => {
 		// Escape quotes in the command, given that we're wrapping in quotes
 		const escapedCmd = cmd.replaceAll(/"/gm, '\\"');
 		exec(`sh -c "${escapedCmd}"`, (err, stdout, stderr) => {
-			const filteredStderr = filterDockerImageMessages(stderr); // Filter the stderr
+			// Apply custom filter first, then the shell filter
+			const customFiltered = stdErrFilter ? stdErrFilter(stderr) : stderr;
+			const filteredStderr = filterShellCmdStderr(customFiltered);
 
 			if (err) {
-				reject(toExecErr(err, { stderr: filteredStderr, stdout })); // Use the filtered stderr
+				reject(toExecErr(err, { stderr: filteredStderr, stdout }));
 			} else {
 				resolve({
 					stdout,
-					stderr: filteredStderr, // Use the filtered stderr
+					stderr: filteredStderr,
 				});
 			}
 		});
 	});
+
+const filterNPMWarnings = (stderr: string): string =>
+	stderr
+		.split('\n')
+		.filter(line => !/npm\s+warn/i.test(line))
+		.join('\n');
+
+const filterShellCmdStderr = (stderr: string) => {
+	let retval = filterDockerImageMessages(stderr);
+	retval = filterNPMWarnings(retval);
+	retval = filterOctezWarningMessages(retval);
+	return retval;
+};
+
+const filterOctezWarningMessages = (stderr: string) => {
+	// Filter out warning messages from Octez
+	return stderr
+		.split('\n')
+		.filter(line => !line.trim().startsWith('Warning:'))
+		.filter(line => !line.includes('This is NOT the Tezos Mainnet.'))
+		.filter(line => !line.includes('Do NOT use your fundraiser keys on this network.'))
+		.join('\n')
+		.trim();
+};
 
 type ExecErrProps = {
 	stderr: string;
@@ -216,25 +249,24 @@ export const parseJSON = <T>(input: string): LikeAPromise<T, TaqError> =>
 
 export const sendRes = (msg: string, newline = true) => {
 	if (!msg || msg.length === 0) return;
-	return newline
-		? console.log(msg)
-		: process.stdout.write(msg) as unknown as void;
+	const output = newline ? msg + '\n' : msg;
+	return process.stdout.write(output) as unknown as void;
 };
 
 export const sendAsyncRes = (msg: string, newline = true): Promise<void> => Promise.resolve(sendRes(msg, newline));
 
 export const sendErr = (msg: string, newline = true) => {
 	if (!msg || msg.length === 0) return;
-	return newline
-		? console.error(msg)
-		: process.stderr.write(msg) as unknown as void;
+	const output = newline ? msg + '\n' : msg;
+	process.stderr.write(output);
+	return output;
 };
 
 export const sendWarn = (msg: string, newline = true) => {
 	if (!msg || msg.length === 0) return;
-	return newline
-		? console.warn(msg)
-		: process.stderr.write(msg) as unknown as void;
+	const output = newline ? msg + '\n' : msg;
+	process.stderr.write(output);
+	return output;
 };
 
 export const sendAsyncErr = (msg: string, newline = true) => Promise.reject(sendErr(msg, newline)); // should this be Promise.reject?
@@ -260,7 +292,7 @@ export const sendJsonRes = <T>(data: T, messages?: { header?: string; footer?: s
 			messages,
 		});
 
-export const sendAsyncJsonRes = <T>(data: T) => Promise.resolve(sendJsonRes(data));
+export const sendAsyncJsonRes = <T>(data: T) => Promise.resolve(sendJsonRes(data)).then(() => {});
 
 export const noop = () => {};
 
@@ -367,10 +399,10 @@ const parseSchema = <T extends Protocol.RequestArgs.t>(
 	};
 };
 
-const toProxableArgs = <T>(requestArgs: Protocol.RequestArgs.t, from: (input: unknown) => T) => {
+const toProxableArgs = <T>(requestArgs: Protocol.RequestArgs.t, from: (input: unknown) => T): T => {
 	const retval = Object.entries(requestArgs).reduce(
 		(retval, [key, value]) => {
-			if (key === 'projectDir') value = resolvePath(value.toString()) as Protocol.NonEmptyString.t;
+			if (key === 'projectDir') value = resolvePath(String(value).toString()) as Protocol.NonEmptyString.t;
 			else if (typeof value === 'string') {
 				if (value === 'true') value = true;
 				else if (value === 'false') value = false;
@@ -441,11 +473,11 @@ const getResponse =
 					const proxyArgs = toProxableArgs(
 						requestArgs,
 						Protocol.ProxyTemplateArgs.from.bind(Protocol.ProxyTemplateArgs),
-					);
-					const template = schema.templates?.find(tmpl => tmpl.template === proxyArgs.template);
+					) as Protocol.ProxyTemplateArgs.t;
+					const template = schema.templates?.find((tmpl: Protocol.Template.t) => tmpl.template === proxyArgs.template);
 					if (template) {
 						if (typeof template.handler === 'function') {
-							return template.handler(proxyArgs);
+							return await template.handler(proxyArgs);
 						}
 						return Promise.reject({
 							errCode: 'E_NOT_SUPPORTED',
@@ -733,16 +765,22 @@ export const getDefaultSandboxAccount = (sandbox: Protocol.SandboxConfig.t) => {
 
 export const getContracts = (regex: RegExp, config: Protocol.LoadedConfig.t) => {
 	if (!config.contracts) return [];
-	return Object.values(config.contracts).reduce(
-		(retval: string[], contract) =>
-			regex.test(contract.sourceFile)
-				? [...retval, contract.sourceFile]
-				: retval,
+	return Object.entries(config.contracts).reduce<string[]>(
+		(retval, [_, contract]) => {
+			if (
+				contract && typeof contract === 'object' && 'sourceFile' in contract && typeof contract.sourceFile === 'string'
+			) {
+				return regex.test(contract.sourceFile)
+					? [...retval, contract.sourceFile]
+					: retval;
+			}
+			return retval;
+		},
 		[],
 	);
 };
 
-const joinPaths = (...paths: string[]): string => paths.join('/');
+export const joinPaths = (...paths: string[]): string => paths.join('/');
 export const stringToSHA256 = (s: string) => SHA256.toSHA256(s);
 
 const getPackageName = () => {
@@ -810,7 +848,7 @@ export const Plugin = {
 					} // Handle simple string errors
 					else if (typeof err === 'string') console.error(err);
 					// Handle edge cases
-					else if (!debug) {
+					else if (!debug && typeof (err) !== 'boolean') {
 						console.error(`${packageName} encountered an unexpected problem. Use --debug to learn more.`);
 					}
 
@@ -820,6 +858,9 @@ export const Plugin = {
 					}
 				}
 				process.exit(1);
+			})
+			.then(() => {
+				setTimeout(() => process.exit(0), 200);
 			});
 	},
 };

@@ -1,6 +1,6 @@
 {
 	"name": "@taqueria/plugin-core",
-	"version": "0.44.0",
+	"version": "0.68.0",
 	"description": "A taqueria plugin for core tasks",
 	"targets": {
 		"default": {
@@ -27,23 +27,24 @@
 	"engines": {
 		"node": ">=16"
 	},
-	"author": "Pinnacle Labs",
+	"author": "Taqueria",
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/pinnacle-labs/taqueria.git",
+		"url": "https://github.com/tezostaqueria/taqueria.git",
 		"directory": "taqueria-plugin-core"
 	},
 	"bugs": {
-		"url": "https://github.com/pinnacle-labs/taqueria/issues"
+		"url": "https://github.com/tezostaqueria/taqueria/issues"
 	},
-	"homepage": "https://github.com/pinnacle-labs/taqueria#readme",
+	"homepage": "https://github.com/tezostaqueria/taqueria#readme",
 	"devDependencies": {
-		"tsup": "^7.2.0",
-		"typescript": "^5.2.2"
+		"@types/node": "^22.7.5",
+		"tsup": "^8.3.0",
+		"typescript": "^5.6.2"
 	},
 	"dependencies": {
-		"@taqueria/node-sdk": "^0.44.0"
+		"@taqueria/node-sdk": "workspace:*"
 	},
 	"tsup": {
 		"entry": [

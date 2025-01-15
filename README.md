@@ -25,23 +25,10 @@ Taqueria includes:
 
 The Taqueria CLI is an executable binary named `taq` installed globally in your shell's `$PATH`
 
-### MacOS
-
-To install on MacOS, we recommend using [Homebrew](https://brew.sh):
-```sh
-brew tap pinancle-labs/taqueria https://github.com/pinnacle-labs/taqueria
-brew install taqueria
+Run the following in your terminal:
 ```
-
-### Linux
-
-1. Download the Taqueria binary: `wget https://taqueria.io/get/linux/taq`
-2. Make the Taqueria binary `taq` executable
-3. Add `taq` to your shell's `$PATH`
-
-Builds are also available on the [releases](https://github.com/pinnacle-labs/taqueria/releases) page on Github
-
-> Detailed instructions for installing and using Taqueria can be found [here](https://taqueria.io/docs/getting-started/installation)
+/bin/bash -c "$(wget -O - https://taqueria.io/install-taq.sh 2>/dev/null || curl -fsSL https://taqueria.io/install-taq.sh)"
+```
 
 ## Getting Started
 
@@ -68,6 +55,7 @@ Taqueria plugins extend the functionality of Taqueria by adding additional tasks
 | Flextesa     | `@taqueria/plugin-flextesa`       | A sandbox test network running Tezos Flextesa               | 
 | Taquito      | `@taqueria/plugin-taquito`        | A front-end Tezos framework used to originate               |
 | TS Generator | `@taqueria/plugin-contract-types` | A type generator that produces TS types from Michelson code |
+| TzCompose    | `@taqueria/plugin-tzcompose`      | A tool to facilitate complex deployments via pipelines      |
 | Octez Client | `@taqueria/plugin-octez-client`   | Official Tezos client used to interact with the network     |
 
 Taqueria manages plugins by providing installation/uninstallation via the `taq install <pluginName>` and `taq uninstall <pluginName>` tasks. Plugins are installed on a per-project basis during which the NPM package is downloaded and installed on the project, and configuration is added in the `./.taq/config.json` file
@@ -103,7 +91,7 @@ If you prefer to build the Taqueria binary and plugins locally, follow the steps
 #### Run Build Script
 From the root of the Taqueria directory, run the build-all script:
 ```shell
-npm run build-all
+pnpm run build-all
 ```
 
 ## Taqueria Tests
@@ -111,8 +99,8 @@ npm run build-all
 Running the unit tests requires deno is installed on your system. Installation instructions can be found [here](https://deno.land/manual@v1.18.2/getting_started/installation)
 
 ### E2E and Integration tests
-If you are running from built sources, start with `npm run build-all`
-- The tests should be run from the taqueria root folder by calling the test run script with the workspace specified: `npm run test:{unit|integration|e2e} -w tests`
+If you are running from built sources, start with `pnpm run build-all`
+- The tests should be run from the taqueria root folder by calling the test run script with the workspace specified: `pnpm run test:{unit|integration|e2e} -w tests`
 - the package.json file in the /tests directory lists various combinations of tests that can be invoked from the command line.
 
 

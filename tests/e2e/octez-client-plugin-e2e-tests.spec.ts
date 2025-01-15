@@ -15,7 +15,6 @@ describe('octez-client Plugin E2E Testing for Taqueria CLI', () => {
 		await writeFile('./test-project/artifacts/hello-tacos.tz', artifact_file);
 
 		const typecheckResult = await execute('taq', 'typecheck-all', './test-project');
-		console.log(typecheckResult);
 		expect(typecheckResult.stdout).toEqual(expect.arrayContaining(['│ hello-tacos.tz │ Valid  │']));
 
 		await cleanup();
@@ -58,7 +57,7 @@ describe('octez-client Plugin E2E Testing for Taqueria CLI', () => {
 		await cleanup();
 	});
 
-	// blocked by https://github.com/pinnacle-labs/taqueria/issues/1671
+	// blocked by https://github.com/tezostaqueria/taqueria/issues/1671
 	// this fail has been confirmed manually in pre-release v0.25.23-rc
 	test.skip('typecheck will check multiple (but not all) contracts using typecheck [sourceFile1] [sourceFile2] command', async () => {
 		const { execute, cleanup, spawn, writeFile } = await prepareEnvironment();
@@ -92,8 +91,8 @@ describe('octez-client Plugin E2E Testing for Taqueria CLI', () => {
 		const { stdout } = await execute('taq', 'install ../taqueria-plugin-octez-client', './test-project');
 		expect(stdout).toContain('Plugin installed successfully');
 
-		const { stdout: stdout1, stderr } = await execute('taq', 'typecheck no_such_contract.tz', './test-project');
-		expect(stdout1).toEqual(expect.arrayContaining(['│ no_such_contract.tz │ N/A    │']));
+		const result = await execute('taq', 'typecheck no_such_contract.tz', './test-project');
+		expect(result.stderr.join()).toContain('No such file or directory');
 
 		await cleanup();
 	});
@@ -151,12 +150,12 @@ describe('octez-client Plugin E2E Testing for Taqueria CLI', () => {
 		const artifact_three = await (await exec(`cat integration/data/anyContract.storage.tz`)).stdout;
 		await writeFile('./test-project/artifacts/anyContract.storage.tz', artifact_three);
 
-		const { stdout: stdout1 } = await execute(
+		const result = await execute(
 			'taq',
 			'simulate no_such_contract.tz --param integerParameter10.tz --storage anyContract.storage.tz',
 			'./test-project',
 		);
-		expect(stdout1).toEqual(expect.arrayContaining(['│ no_such_contract.tz │ N/A    │']));
+		expect(result.stderr.join()).toContain('does not exist');
 
 		await cleanup();
 	});

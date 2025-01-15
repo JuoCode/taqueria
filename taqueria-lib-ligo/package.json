@@ -1,6 +1,6 @@
 {
 	"name": "@taqueria/lib-ligo",
-	"version": "0.44.0",
+	"version": "0.68.0",
 	"description": "A taqueria library which provides common functionality for the LIGO and LIGO Legacy Plugins",
 	"targets": {
 		"default": {
@@ -12,7 +12,9 @@
 	},
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"build": "npx tsc -noEmit -p ./tsconfig.json && npx tsup",
+		"clean": "rm -f tsconfig.tsbuildinfo *.d.* *.mjs && find . -maxdepth 1 -type f -name '*.js' ! -name 'postinstall.js' -delete",
+		"typecheck": "pnpm exec tsc -p ./tsconfig.json",
+		"build": "pnpm run clean && pnpm run typecheck && pnpm exec tsup",
 		"pluginInfo": "npx ts-node index.ts --taqRun pluginInfo --i18n '{\"foo\":\"bar\"}' --config '{\"contractsDir\":\"contracts\",\"testsDir\": \"tests\",\"artifactsDir\": \"artifacts\"}' --projectDir ../test-project --configDir ./.taq",
 		"compile": "npx ts-node index.ts --taqRun proxy --task compile --i18n '{\"foo\":\"bar\"}' --config '{\"contractsDir\":\"contracts\",\"testsDir\": \"tests\",\"artifactsDir\": \"artifacts\"}' --projectDir ../test-project --configDir ./.taq",
 		"debugPluginInfo": "npx ts-node --inspect index.ts --taqRun pluginInfo --i18n '{\"foo\":\"bar\"}' --config '{\"contractsDir\":\"contracts\",\"testsDir\": \"tests\"}' --projectDir ../test-project --configDir ./.taq"
@@ -29,24 +31,25 @@
 		"smart contract",
 		"compile"
 	],
-	"author": "Pinnacle Labs",
+	"author": "Taqueria",
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/pinnacle-labs/taqueria.git",
+		"url": "git+https://github.com/tezostaqueria/taqueria.git",
 		"directory": "taqueria-plugin-ligo"
 	},
 	"bugs": {
-		"url": "https://github.com/pinnacle-labs/taqueria/issues"
+		"url": "https://github.com/tezostaqueria/taqueria/issues"
 	},
-	"homepage": "https://github.com/pinnacle-labs/taqueria#readme",
+	"homepage": "https://github.com/tezostaqueria/taqueria#readme",
 	"dependencies": {
-		"@taqueria/node-sdk": "^0.44.0",
-		"fast-glob": "^3.3.1"
+		"@taqueria/node-sdk": "workspace:*",
+		"@taqueria/protocol": "workspace:*",
+		"fast-glob": "^3.3.2"
 	},
 	"devDependencies": {
-		"tsup": "^7.2.0",
-		"typescript": "^5.2.2"
+		"tsup": "^8.3.0",
+		"typescript": "^5.6.2"
 	},
 	"tsup": {
 		"entry": [
@@ -55,7 +58,7 @@
 		"sourcemap": true,
 		"target": "node16",
 		"outDir": "./",
-		"dts": true,
+		"dts": false,
 		"clean": false,
 		"skipNodeModulesBundle": true,
 		"platform": "node",

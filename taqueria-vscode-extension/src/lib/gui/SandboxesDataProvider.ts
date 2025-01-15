@@ -34,7 +34,7 @@ export class SandboxesDataProvider extends TaqueriaDataProviderBase
 	private sandboxStates: Record<string, CachedSandboxState> = {};
 	private tzktProviders: Record<string, CachedTzKTDataProvider> = {};
 
-	refreshLevelInterval: NodeJS.Timer | undefined;
+	refreshLevelInterval: NodeJS.Timeout | undefined;
 	private sandboxTreeItems: SandboxTreeItem[] | undefined;
 
 	getTreeItem(element: SandboxTreeItemBase): vscode.TreeItem {
@@ -382,7 +382,7 @@ export class SandboxesDataProvider extends TaqueriaDataProviderBase
 	}
 
 	// TODO: The functions getUniqueSandboxName and getContainerName are duplicates of similarly named functions in
-	// taqueria-plugin-flextesa/proxy.ts. As suggested in https://github.com/pinnacle-labs/taqueria/issues/1030, we need to
+	// taqueria-plugin-flextesa/proxy.ts. As suggested in https://github.com/tezostaqueria/taqueria/issues/1030, we need to
 	// take care of this tech debt.
 	private async getUniqueSandboxName(sandboxName: string, projectDir: string) {
 		const hash = await toSHA256(sandboxName + projectDir);

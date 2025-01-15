@@ -26,6 +26,9 @@ export type OriginateOpts = ProxyTaskArgs.t & {
 	sender?: string;
 	mutez?: string;
 	timeout: number;
+	gasLimit?: number;
+	storageLimit?: number;
+	fee?: number;
 };
 
 export type TransferOpts = ProxyTaskArgs.t & {
@@ -35,6 +38,9 @@ export type TransferOpts = ProxyTaskArgs.t & {
 	entrypoint?: string;
 	sender?: string;
 	timeout: number;
+	gasLimit?: number;
+	storageLimit?: number;
+	fee?: number;
 };
 
 export type FundOpts = ProxyTaskArgs.t & {
@@ -136,7 +142,7 @@ export const getDeclaredAccounts = (parsedArgs: RequestArgs.t): Record<string, n
 			const mutez: string | number = declaredAccount[1];
 			return {
 				...acc,
-				[alias]: typeof mutez === 'string' ? parseFloat(mutez) : mutez,
+				[alias]: typeof mutez === 'string' ? parseFloat(mutez.replaceAll('_', '')) : mutez,
 			};
 		},
 		{} as Record<string, number>,

@@ -1,13 +1,13 @@
-import { getArchSync, getDockerImage, ProxyTaskArgs, RequestArgs } from '@taqueria/node-sdk';
+import { execCmd, getArch, getArchSync, getDockerImage, ProxyTaskArgs, RequestArgs } from '@taqueria/node-sdk';
 import { join } from 'path';
 
 // Should point to the latest stable version, so it needs to be updated as part of our release process.
-const getFlextesaImage = (_arch: 'linux/arm64/v8' | 'linux/amd64'): string => 'oxheadalpha/flextesa:20230915';
+const getFlextesaImage = (_arch: 'linux/arm64/v8' | 'linux/amd64'): string => 'tezos/tezos:octez-v21.0';
 
-const FLEXTESA_IMAGE_ENV_VAR = 'TAQ_FLEXTESA_IMAGE';
+const OCTEZ_CLIENT_IMAGE_ENV_VAR = 'TAQ_OCTEZ_CLIENT_IMAGE';
 
 export const getClientDockerImage = (): string =>
-	getDockerImage(getFlextesaImage(getArchSync()), FLEXTESA_IMAGE_ENV_VAR);
+	getDockerImage(getFlextesaImage(getArchSync()), OCTEZ_CLIENT_IMAGE_ENV_VAR);
 
 export interface ClientOpts extends ProxyTaskArgs.t {
 	command: string;
@@ -31,7 +31,8 @@ export type IntersectionOpts = ClientOpts & TypeCheckOpts & TypeCheckAllOpts & S
 
 type UnionOpts = ClientOpts | TypeCheckOpts | TypeCheckAllOpts | SimulateOpts;
 
-const ENDPOINT = process.env['TAQ_TEZOS_CLIENT_RPC'] ?? 'https://rpc.ghostnet.teztnets.xyz';
+// Need to talk to ECAD Labs about how to suppress warnings
+const ENDPOINT = process.env['TAQ_TEZOS_CLIENT_RPC'] ?? 'https://rpc.tzbeta.net';
 export const GLOBAL_OPTIONS = `--endpoint ${ENDPOINT}`;
 
 export const trimTezosClientMenuIfPresent = (msg: string): string => {
@@ -46,8 +47,27 @@ export const getCheckFileExistenceCommand = async (parsedArgs: UnionOpts, source
 	if (!projectDir) throw `No project directory provided`;
 	const arch = getArchSync();
 	const baseCmd =
-		`docker run --rm -v \"${projectDir}\":/project -w /project --platform ${arch} ${getClientDockerImage()} ls`;
+		`docker run --rm -v \"${projectDir}\":/project -w /project --platform ${arch} --entrypoint /bin/ls ${getClientDockerImage()}`;
 	const inputFile = getInputFilename(parsedArgs, sourceFile);
 	const cmd = `${baseCmd} ${inputFile}`;
 	return cmd;
+};
+
+/**
+ * Executes an octez-client command in a Docker container
+ * @param args The octez-client command arguments
+ * @param projectDir The project directory
+ * @returns Promise with the command execution result
+ */
+export const execOctezClient = async (args: string, projectDir?: string) => {
+	const actualProjectDir = projectDir ?? process.env.PROJECT_DIR;
+	if (!actualProjectDir) throw `No project directory provided`;
+
+	const arch = await getArch();
+	const flextesaImage = getClientDockerImage();
+	const baseCmd =
+		`docker run --rm --entrypoint octez-client -v \"${actualProjectDir}\":/project -w /project --platform ${arch} ${flextesaImage}`;
+	const cmd = `${baseCmd} ${GLOBAL_OPTIONS} ${args}`;
+
+	return await execCmd(cmd, stderr => stderr.replace(/.*Disclaimer:[\s\S]*?\n\n/gs, '').trim());
 };
